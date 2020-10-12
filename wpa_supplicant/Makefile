@@ -1907,6 +1907,10 @@ eapol_test: $(OBJS_t)
 	$(Q)$(LDO) $(LDFLAGS) -o eapol_test $(OBJS_t) $(LIBS)
 	@$(E) "  LD " $@
 
+rad_auth: $(OBJS_t)
+	$(Q)$(LDO) $(LDFLAGS) -o rad_auth $(OBJS_t) $(LIBS)
+	@$(E) "  LD " $@
+
 preauth_test: $(OBJS_t2)
 	$(Q)$(LDO) $(LDFLAGS) -o preauth_test $(OBJS_t2) $(LIBS)
 	@$(E) "  LD " $@
@@ -2040,7 +2044,7 @@ clean:
 	$(MAKE) -C ../src clean
 	$(MAKE) -C dbus clean
 	rm -f core *~ *.o *.d *.gcno *.gcda *.gcov
-	rm -f eap_*.so $(ALL) $(WINALL) eapol_test preauth_test
+	rm -f eap_*.so $(ALL) $(WINALL) eapol_test preauth_test rad_auth
 	rm -f wpa_priv
 	rm -f nfc_pw_token
 	rm -f lcov.info
