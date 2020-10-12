@@ -5,7 +5,7 @@
  * This software may be distributed under the terms of the BSD license.
  * See README for more details.
  *
- * CLI utility for authenticating a user
+ * CLI utility for authenticating a user - based on eapol_test
  * Xand Meaden, KCL, October 2020
  */
 
@@ -83,8 +83,12 @@ struct eapol_test_data {
 	unsigned int id_req_sent:1;
 };
 
-static struct eapol_test_data eapol_test;
+struct config {
+	char *server_address;
+	char *shared_secret;
+};
 
+static struct eapol_test_data eapol_test;
 
 static void send_eap_request_identity(void *eloop_ctx, void *timeout_ctx);
 
@@ -1249,6 +1253,51 @@ static void usage(void)
 	       "  -c<conf> = configuration file\n");
 }
 
+static struct config * load_config(char *path)
+{
+	FILE *fp;
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	struct config *config = NULL;
+	int i;
+	int x = 0;
+	char append[2];
+
+	printf("Loading configuration from %s\n", path);
+
+	if ((fp = fopen(path, "r")) == NULL) {
+		printf("Failed to open configuration file '%s'.\n", path);
+		return NULL;
+	}
+
+	read = getline(&line, &len, fp);
+	fclose(fp);
+
+	if (read < 1) {
+		printf("Failed to load configuration.\n");
+		return NULL;
+	}
+
+	config->server_address = "";
+	config->shared_secret = "";
+
+	for (i = 0; i < read; i++) {
+		if (line[i] == ' ') {
+			x++;
+		} else {
+			append[0] = line[i];
+			if (x == 0) {
+				strcat(config->server_address, append);
+			} else {
+				strcat(config->shared_secret, append);
+			}
+		}
+	}
+
+	return config;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -1265,11 +1314,7 @@ int main(int argc, char *argv[])
 	struct extra_radius_attr *p = NULL, *p1;
 	const char *ifname = "test";
 	const char *ctrl_iface = NULL;
-
-	FILE *conf_fp;
-	char *conf_line = NULL;
-	size_t conf_len = 0;
-	ssize_t conf_read;
+	struct config *config;
 
 	if (os_program_init())
 		return -1;
@@ -1423,13 +1468,11 @@ int main(int argc, char *argv[])
 	dl_list_init(&wpa_s.bss);
 	dl_list_init(&wpa_s.bss_id);
 
-	if ((conf_fp = fopen(conf, "r")) == NULL) {
-		printf("Failed to open configuration file '%s'.\n", conf);
-		return -1;
-	}
+	config = load_config(conf);
 
-	while ((conf_read = getline(&conf_line, &conf_len, conf_fp)) != -1) {
-		printf("%s\n", conf_line);
+	if (strcmp(config->server_address, "") == 0 || strcmp(config->shared_secret, "") == 0) {
+		printf("Failed to load configuration\n");
+		return -1;
 	}
 
 	exit(0);
