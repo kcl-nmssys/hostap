@@ -439,7 +439,7 @@ static void eapol_sm_cb(struct eapol_sm *eapol, enum eapol_supp_result result,
 static void eapol_test_write_cert(FILE *f, const char *subject,
 				  const struct wpabuf *cert)
 {
-	char *encoded;
+	unsigned char *encoded;
 
 	encoded = base64_encode(wpabuf_head(cert), wpabuf_len(cert), NULL);
 	if (encoded == NULL)
@@ -644,9 +644,9 @@ static int test_eapol(struct eapol_test_data *e, struct wpa_supplicant *wpa_s,
 	eapol_sm_register_scard_ctx(wpa_s->eapol, wpa_s->scard);
 
 
-	eapol_sm_notify_portValid(wpa_s->eapol, false);
+	eapol_sm_notify_portValid(wpa_s->eapol, 0);
 	/* 802.1X::portControl = Auto */
-	eapol_sm_notify_portEnabled(wpa_s->eapol, true);
+	eapol_sm_notify_portEnabled(wpa_s->eapol, 1);
 
 	return 0;
 }
@@ -1265,8 +1265,7 @@ int main(int argc, char *argv[])
 	struct extra_radius_attr *p = NULL, *p1;
 	const char *ifname = "test";
 	const char *ctrl_iface = NULL;
-	char *radius_server = NULL;
-	char *shared_secret = NULL;
+
 	FILE *conf_fp;
 	char *conf_line = NULL;
 	size_t conf_len = 0;

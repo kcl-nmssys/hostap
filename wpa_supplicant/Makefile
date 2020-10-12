@@ -1805,12 +1805,21 @@ OBJS += ../src/drivers/driver_common.o
 OBJS_priv += ../src/drivers/driver_common.o
 
 OBJS += wpa_supplicant.o events.o blacklist.o wpas_glue.o scan.o
+
 OBJS_t := $(OBJS) $(OBJS_l2) eapol_test.o
 OBJS_t += ../src/radius/radius_client.o
 OBJS_t += ../src/radius/radius.o
 ifndef CONFIG_AP
 OBJS_t += ../src/utils/ip_addr.o
 endif
+
+OBJS_rad := $(OBJS) $(OBJS_l2) rad_auth.o
+OBJS_rad += ../src/radius/radius_client.o
+OBJS_rad += ../src/radius/radius.o
+ifndef CONFIG_AP
+OBJS_t += ../src/utils/ip_addr.o
+endif
+
 OBJS_t2 := $(OBJS) $(OBJS_l2) preauth_test.o
 
 OBJS_nfc := $(OBJS) $(OBJS_l2) nfc_pw_token.o
@@ -1907,8 +1916,8 @@ eapol_test: $(OBJS_t)
 	$(Q)$(LDO) $(LDFLAGS) -o eapol_test $(OBJS_t) $(LIBS)
 	@$(E) "  LD " $@
 
-rad_auth: $(OBJS_t)
-	$(Q)$(LDO) $(LDFLAGS) -o rad_auth $(OBJS_t) $(LIBS)
+rad_auth: $(OBJS_rad)
+	$(Q)$(LDO) $(LDFLAGS) -o rad_auth $(OBJS_rad) $(LIBS)
 	@$(E) "  LD " $@
 
 preauth_test: $(OBJS_t2)

@@ -9,6 +9,7 @@
 tests/hwsim/logs
 tests/remote/logs
 wpaspy/build
+wpa_supplicant/rad_auth
 wpa_supplicant/eapol_test
 wpa_supplicant/nfc_pw_token
 wpa_supplicant/preauth_test
