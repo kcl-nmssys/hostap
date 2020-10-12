@@ -644,9 +644,9 @@ static int test_eapol(struct eapol_test_data *e, struct wpa_supplicant *wpa_s,
 	eapol_sm_register_scard_ctx(wpa_s->eapol, wpa_s->scard);
 
 
-	eapol_sm_notify_portValid(wpa_s->eapol, 0);
+	eapol_sm_notify_portValid(wpa_s->eapol, FALSE);
 	/* 802.1X::portControl = Auto */
-	eapol_sm_notify_portEnabled(wpa_s->eapol, 1);
+	eapol_sm_notify_portEnabled(wpa_s->eapol, TRUE);
 
 	return 0;
 }
