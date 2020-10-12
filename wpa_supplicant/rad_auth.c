@@ -1244,52 +1244,9 @@ static void eapol_test_terminate(int sig, void *signal_ctx)
 static void usage(void)
 {
 	printf("usage:\n"
-	       "eapol_test [-enWSv] -c<conf> [-a<AS IP>] [-p<AS port>] "
-	       "[-s<AS secret>]\\\n"
-	       "           [-r<count>] [-t<timeout>] [-C<Connect-Info>] \\\n"
-	       "           [-M<client MAC address>] [-o<server cert file] \\\n"
-	       "           [-N<attr spec>] [-R<PC/SC reader>] "
-	       "[-P<PC/SC PIN>] \\\n"
-	       "           [-A<client IP>] [-i<ifname>] [-T<ctrl_iface>]\n"
-	       "eapol_test scard\n"
-	       "eapol_test sim <PIN> <num triplets> [debug]\n"
-	       "\n");
+	       "rad_auth -c<conf>\n");
 	printf("options:\n"
-	       "  -c<conf> = configuration file\n"
-	       "  -a<AS IP> = IP address of the authentication server, "
-	       "default 127.0.0.1\n"
-	       "  -p<AS port> = UDP port of the authentication server, "
-	       "default 1812\n"
-	       "  -s<AS secret> = shared secret with the authentication "
-	       "server, default 'radius'\n"
-	       "  -A<client IP> = IP address of the client, default: select "
-	       "automatically\n"
-	       "  -r<count> = number of re-authentications\n"
-	       "  -e = Request EAP-Key-Name\n"
-	       "  -W = wait for a control interface monitor before starting\n"
-	       "  -S = save configuration after authentication\n"
-	       "  -n = no MPPE keys expected\n"
-	       "  -v = show version\n"
-	       "  -t<timeout> = sets timeout in seconds (default: 30 s)\n"
-	       "  -C<Connect-Info> = RADIUS Connect-Info (default: "
-	       "CONNECT 11Mbps 802.11b)\n"
-	       "  -M<client MAC address> = Set own MAC address "
-	       "(Calling-Station-Id,\n"
-	       "                           default: 02:00:00:00:00:01)\n"
-	       "  -o<server cert file> = Write received server certificate\n"
-	       "                         chain to the specified file\n"
-	       "  -N<attr spec> = send arbitrary attribute specified by:\n"
-	       "                  attr_id:syntax:value or attr_id\n"
-	       "                  attr_id - number id of the attribute\n"
-	       "                  syntax - one of: s, d, x\n"
-	       "                     s = string\n"
-	       "                     d = integer\n"
-	       "                     x = octet string\n"
-	       "                  value - attribute value.\n"
-	       "       When only attr_id is specified, NULL will be used as "
-	       "value.\n"
-	       "       Multiple attributes can be specified by using the "
-	       "option several times.\n");
+	       "  -c<conf> = configuration file\n");
 }
 
 
@@ -1308,6 +1265,12 @@ int main(int argc, char *argv[])
 	struct extra_radius_attr *p = NULL, *p1;
 	const char *ifname = "test";
 	const char *ctrl_iface = NULL;
+	char *radius_server = NULL;
+	char *shared_secret = NULL;
+	FILE *conf_fp;
+	char *conf_line = NULL;
+	size_t conf_len = 0;
+	ssize_t conf_read;
 
 	if (os_program_init())
 		return -1;
@@ -1438,7 +1401,7 @@ int main(int argc, char *argv[])
 					  &argv[optind + 1]);
 	}
 
-	if (conf == NULL && !ctrl_iface) {
+	if (conf == NULL) {
 		usage();
 		printf("Configuration file is required.\n");
 		return -1;
@@ -1460,6 +1423,18 @@ int main(int argc, char *argv[])
 	eapol_test.wpa_s = &wpa_s;
 	dl_list_init(&wpa_s.bss);
 	dl_list_init(&wpa_s.bss_id);
+
+	if ((conf_fp = fopen(conf, "r")) == NULL) {
+		printf("Failed to open configuration file '%s'.\n", conf);
+		return -1;
+	}
+
+	while ((conf_read = getline(&conf_line, &conf_len, conf_fp)) != -1) {
+		printf("%s\n", conf_line);
+	}
+
+	exit(0);
+
 	if (conf)
 		wpa_s.conf = wpa_config_read(conf, NULL);
 	else
