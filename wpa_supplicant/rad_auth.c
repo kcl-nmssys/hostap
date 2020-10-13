@@ -1196,6 +1196,57 @@ static struct auth_request * get_auth_request () {
 	return request;
 }
 
+/*
+  Build config struct based on server_config and auth_request
+	Replaces wpa_config_read() which would read such configuration from eapol_test config file and CLI
+*/
+struct wpa_config * wpa_config_build(struct auth_request *auth_request, char *ca_file) {
+	struct wpa_ssid *ssid, *tail, *head;
+	struct wpa_cred *cred_tail, *cred_head;
+	struct wpa_config *config;
+	char identity[255];
+	char password[255];
+	char ca_cert[255];
+	int errors = 0;
+
+	config = wpa_config_alloc_empty(NULL, NULL);
+	if (config == NULL) {
+		puts("Failed to allocate config file structure");
+		return NULL;
+	}
+
+	tail = head = config->ssid;
+	while (tail && tail->next)
+		tail = tail->next;
+	cred_tail = cred_head = config->cred;
+	while (cred_tail && cred_tail->next)
+		cred_tail = cred_tail->next;
+
+	ssid = os_zalloc(sizeof(*ssid));
+
+	sprintf(identity, "\"%s\"", auth_request->username);
+	sprintf(password, "\"%s\"", auth_request->password);
+
+	errors += wpa_config_set(ssid, "key_mgmt", "WPA-EAP", 0);
+	errors += wpa_config_set(ssid, "eap", "PEAP", 0);
+	errors += wpa_config_set(ssid, "identity", identity, 0);
+	errors += wpa_config_set(ssid, "anonymous_identity", identity, 0);
+	errors += wpa_config_set(ssid, "password", password, 0);
+	errors += wpa_config_set(ssid, "phase2", "\"auth=MSCHAPV2\"", 0);
+
+	if (ca_file != NULL) {
+		sprintf(ca_cert, "\"%s\"", ca_file);
+		errors += wpa_config_set(ssid, "ca_cert", ca_file, 0);
+	}
+
+	if (errors < 0) {
+		return NULL;
+	}
+
+	config->ssid = ssid;
+	return config;
+}
+
 int main(int argc, char *argv[])
 {
 	struct wpa_global global;
@@ -1203,9 +1254,10 @@ int main(int argc, char *argv[])
 	int c, ret = 1, wait_for_monitor = 0, save_config = 0;
 	char *as_addr = "127.0.0.1";
 	int as_port = 1812;
-	char *as_secret = "radius";
+	char *as_secret = "secret";
 	char *cli_addr = NULL;
 	char *conf = NULL;
+	char *ca_file = NULL;
 	int timeout = 30;
 	//struct extra_radius_attr *extra_attr = NULL;
 	const char *ifname = "test";
@@ -1227,12 +1279,15 @@ int main(int argc, char *argv[])
 	wpa_debug_show_keys = 1;
 
 	for (;;) {
-		c = getopt(argc, argv, "c:");
+		c = getopt(argc, argv, "c:s:");
 		if (c < 0)
 			break;
 		switch (c) {
 		case 'c':
 			conf = optarg;
+			break;
+		case 's':
+			ca_file = optarg;
 			break;
 		default:
 			usage();
@@ -1249,7 +1304,7 @@ int main(int argc, char *argv[])
 	server_config = load_config(conf);
 
 	if (server_config == NULL || strcmp(server_config->address, "") == 0 || strcmp(server_config->secret, "") == 0) {
-		printf("Failed to load configuration\n");
+		printf("Failed to load configuration.\n");
 		return -1;
 	}
 
@@ -1265,8 +1320,8 @@ int main(int argc, char *argv[])
 
 	printf("Username: '%s'\n", auth_request->username);
 	printf("Password: '%s'\n", auth_request->password);
-
-	os_free(server_config);
+	printf("Service: '%s'\n", auth_request->service);
+	printf("Rhost: '%s'\n", auth_request->rhost);
 
 	if (eap_register_methods()) {
 		wpa_printf(MSG_ERROR, "Failed to register EAP methods");
@@ -1285,13 +1340,15 @@ int main(int argc, char *argv[])
 	dl_list_init(&wpa_s.bss);
 	dl_list_init(&wpa_s.bss_id);
 
-	wpa_s.conf = wpa_config_alloc_empty(NULL, NULL);
+	wpa_s.conf = wpa_config_build(auth_request, ca_file);
+
+	as_addr = server_config->address;
+	as_secret = server_config->secret;
+
+	//exit(0);
 
 
-	exit(0);
-
-
-	if (conf)
+	/*if (conf)
 		wpa_s.conf = wpa_config_read(conf, NULL);
 	else
 		wpa_s.conf = wpa_config_alloc_empty(ctrl_iface, NULL);
@@ -1307,7 +1364,7 @@ int main(int argc, char *argv[])
 	if (eapol_test.pcsc_reader) {
 		os_free(wpa_s.conf->pcsc_reader);
 		wpa_s.conf->pcsc_reader = os_strdup(eapol_test.pcsc_reader);
-	}
+	}*/
 
 	wpa_init_conf(&eapol_test, &wpa_s, as_addr, as_port, as_secret,
 		      cli_addr, ifname);
