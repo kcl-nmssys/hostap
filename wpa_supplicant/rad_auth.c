@@ -1260,11 +1260,11 @@ static struct config * load_config(char *path)
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read;
-	int i;
+	int i = 0;
 	int x = 0;
 	char append[2];
-	char server_address[255];
-	char shared_secret[255];
+	char server_address[255] = "";
+	char shared_secret[255] = "";
 
 	config = os_zalloc(sizeof(*config));
 
@@ -1283,7 +1283,6 @@ static struct config * load_config(char *path)
 		return NULL;
 	}
 
-	i = 0;
 	while (line[i] != '\n') {
 		if (line[i] == ' ') {
 			x++;
