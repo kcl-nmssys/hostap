@@ -83,9 +83,16 @@ struct eapol_test_data {
 	unsigned int id_req_sent:1;
 };
 
-struct config {
-	char *server_address;
-	char *shared_secret;
+struct server_config {
+	char *address;
+	char *secret;
+};
+
+struct auth_request {
+	char *username;
+	char *password;
+	char *service;
+	char *rhost;
 };
 
 static struct eapol_test_data eapol_test;
@@ -1062,181 +1069,6 @@ static void wpa_init_conf(struct eapol_test_data *e,
 	assert(res == 0);
 }
 
-
-static int scard_test(struct eapol_test_data *e)
-{
-	struct scard_data *scard;
-	size_t len;
-	char imsi[20];
-	unsigned char _rand[16];
-#ifdef PCSC_FUNCS
-	unsigned char sres[4];
-	unsigned char kc[8];
-#endif /* PCSC_FUNCS */
-#define num_triplets 5
-	unsigned char rand_[num_triplets][16];
-	unsigned char sres_[num_triplets][4];
-	unsigned char kc_[num_triplets][8];
-	int i, res;
-	size_t j;
-
-#define AKA_RAND_LEN 16
-#define AKA_AUTN_LEN 16
-#define AKA_AUTS_LEN 14
-#define RES_MAX_LEN 16
-#define IK_LEN 16
-#define CK_LEN 16
-	unsigned char aka_rand[AKA_RAND_LEN];
-	unsigned char aka_autn[AKA_AUTN_LEN];
-	unsigned char aka_auts[AKA_AUTS_LEN];
-	unsigned char aka_res[RES_MAX_LEN];
-	size_t aka_res_len;
-	unsigned char aka_ik[IK_LEN];
-	unsigned char aka_ck[CK_LEN];
-
-	scard = scard_init(e->pcsc_reader);
-	if (scard == NULL)
-		return -1;
-	if (scard_set_pin(scard, e->pcsc_pin)) {
-		wpa_printf(MSG_WARNING, "PIN validation failed");
-		scard_deinit(scard);
-		return -1;
-	}
-
-	len = sizeof(imsi);
-	if (scard_get_imsi(scard, imsi, &len))
-		goto failed;
-	wpa_hexdump_ascii(MSG_DEBUG, "SCARD: IMSI", (u8 *) imsi, len);
-	/* NOTE: Permanent Username: 1 | IMSI */
-
-	wpa_printf(MSG_DEBUG, "SCARD: MNC length %d",
-		   scard_get_mnc_len(scard));
-
-	os_memset(_rand, 0, sizeof(_rand));
-	if (scard_gsm_auth(scard, _rand, sres, kc))
-		goto failed;
-
-	os_memset(_rand, 0xff, sizeof(_rand));
-	if (scard_gsm_auth(scard, _rand, sres, kc))
-		goto failed;
-
-	for (i = 0; i < num_triplets; i++) {
-		os_memset(rand_[i], i, sizeof(rand_[i]));
-		if (scard_gsm_auth(scard, rand_[i], sres_[i], kc_[i]))
-			goto failed;
-	}
-
-	for (i = 0; i < num_triplets; i++) {
-		printf("1");
-		for (j = 0; j < len; j++)
-			printf("%c", imsi[j]);
-		printf(",");
-		for (j = 0; j < 16; j++)
-			printf("%02X", rand_[i][j]);
-		printf(",");
-		for (j = 0; j < 4; j++)
-			printf("%02X", sres_[i][j]);
-		printf(",");
-		for (j = 0; j < 8; j++)
-			printf("%02X", kc_[i][j]);
-		printf("\n");
-	}
-
-	wpa_printf(MSG_DEBUG, "Trying to use UMTS authentication");
-
-	/* seq 39 (0x28) */
-	os_memset(aka_rand, 0xaa, 16);
-	os_memcpy(aka_autn, "\x86\x71\x31\xcb\xa2\xfc\x61\xdf"
-		  "\xa3\xb3\x97\x9d\x07\x32\xa2\x12", 16);
-
-	res = scard_umts_auth(scard, aka_rand, aka_autn, aka_res, &aka_res_len,
-			      aka_ik, aka_ck, aka_auts);
-	if (res == 0) {
-		wpa_printf(MSG_DEBUG, "UMTS auth completed successfully");
-		wpa_hexdump(MSG_DEBUG, "RES", aka_res, aka_res_len);
-		wpa_hexdump(MSG_DEBUG, "IK", aka_ik, IK_LEN);
-		wpa_hexdump(MSG_DEBUG, "CK", aka_ck, CK_LEN);
-	} else if (res == -2) {
-		wpa_printf(MSG_DEBUG, "UMTS auth resulted in synchronization "
-			   "failure");
-		wpa_hexdump(MSG_DEBUG, "AUTS", aka_auts, AKA_AUTS_LEN);
-	} else {
-		wpa_printf(MSG_DEBUG, "UMTS auth failed");
-	}
-
-failed:
-	scard_deinit(scard);
-
-	return 0;
-#undef num_triplets
-}
-
-
-static int scard_get_triplets(struct eapol_test_data *e, int argc, char *argv[])
-{
-	struct scard_data *scard;
-	size_t len;
-	char imsi[20];
-	unsigned char _rand[16];
-	unsigned char sres[4];
-	unsigned char kc[8];
-	int num_triplets;
-	int i;
-	size_t j;
-
-	if (argc < 2 || ((num_triplets = atoi(argv[1])) <= 0)) {
-		printf("invalid parameters for sim command\n");
-		return -1;
-	}
-
-	if (argc <= 2 || os_strcmp(argv[2], "debug") != 0) {
-		/* disable debug output */
-		wpa_debug_level = 99;
-	}
-
-	scard = scard_init(e->pcsc_reader);
-	if (scard == NULL) {
-		printf("Failed to open smartcard connection\n");
-		return -1;
-	}
-	if (scard_set_pin(scard, argv[0])) {
-		wpa_printf(MSG_WARNING, "PIN validation failed");
-		scard_deinit(scard);
-		return -1;
-	}
-
-	len = sizeof(imsi);
-	if (scard_get_imsi(scard, imsi, &len)) {
-		scard_deinit(scard);
-		return -1;
-	}
-
-	for (i = 0; i < num_triplets; i++) {
-		os_memset(_rand, i, sizeof(_rand));
-		if (scard_gsm_auth(scard, _rand, sres, kc))
-			break;
-
-		/* IMSI:Kc:SRES:RAND */
-		for (j = 0; j < len; j++)
-			printf("%c", imsi[j]);
-		printf(":");
-		for (j = 0; j < 8; j++)
-			printf("%02X", kc[j]);
-		printf(":");
-		for (j = 0; j < 4; j++)
-			printf("%02X", sres[j]);
-		printf(":");
-		for (j = 0; j < 16; j++)
-			printf("%02X", _rand[j]);
-		printf("\n");
-	}
-
-	scard_deinit(scard);
-
-	return 0;
-}
-
-
 static void eapol_test_terminate(int sig, void *signal_ctx)
 {
 	struct wpa_supplicant *wpa_s = signal_ctx;
@@ -1253,9 +1085,14 @@ static void usage(void)
 	       "  -c<conf> = configuration file\n");
 }
 
-static struct config * load_config(char *path)
+/*
+	Load configuration file containing RADIUS server address and shared secret
+	e.g.
+	198.51.100.123 0UlcOiTAJ8amxk2dhAdQaRvy2uELs7mI1ZXYuYlikRpYmIs5ALA5EOAS4rpaCOGU
+*/
+static struct server_config * load_config(char *path)
 {
-	struct config *config;
+	struct server_config *config;
 	FILE *fp;
 	char *line = NULL;
 	size_t len = 0;
@@ -1263,12 +1100,10 @@ static struct config * load_config(char *path)
 	int i = 0;
 	int x = 0;
 	char append[2];
-	char server_address[255] = "";
-	char shared_secret[255] = "";
+	char address[255] = "";
+	char secret[255] = "";
 
 	config = os_zalloc(sizeof(*config));
-
-	printf("Loading configuration from %s\n", path);
 
 	if ((fp = fopen(path, "r")) == NULL) {
 		printf("Failed to open configuration file '%s'.\n", path);
@@ -1289,20 +1124,77 @@ static struct config * load_config(char *path)
 		} else {
 			append[0] = line[i];
 			if (x == 0) {
-				strcat(server_address, append);
+				strcat(address, append);
 			} else {
-				strcat(shared_secret, append);
+				strcat(secret, append);
 			}
 		}
 		i++;
 	}
 
-	config->server_address = server_address;
-	config->shared_secret = shared_secret;
+	config->address = address;
+	config->secret = secret;
 
 	return config;
 }
 
+/*
+	Read authentication request parameters - username, password etc
+*/
+static struct auth_request * get_auth_request () {
+	struct auth_request *request;
+	struct timeval stdin_timeout = {1,0};
+	int stdin_ret;
+	fd_set fds;
+	char *username = getenv("PAM_USER");
+	char *password = NULL;
+	char *service = getenv("PAM_SERVICE");
+	char *rhost = getenv("PAM_RHOST");
+	size_t len = 0;
+	ssize_t line_size = 0;
+
+	if (username == NULL) {
+		puts("No username found");
+		return NULL;
+	}
+
+	if (service == NULL) {
+		service = "Unspecified";
+	}
+
+	if (rhost == NULL) {
+		rhost = "Unspecified";
+	}
+
+	request = os_zalloc(sizeof(*request));
+
+	FD_ZERO(&fds);
+	FD_SET(0, &fds);
+	stdin_ret = select(1, &fds, NULL, NULL, &stdin_timeout);
+
+	if (stdin_ret < 1) {
+		puts("No password supplied via STDIN");
+		return NULL;
+	}
+
+	line_size = getline(&password, &len, stdin);
+
+	if (line_size < 2) {
+		puts("Empty password supplied via STDIN");
+		return NULL;
+	}
+
+	if (password[line_size - 1] == '\n') {
+		password[line_size - 1] = 0;
+	}
+
+	request->username = username;
+	request->password = password;
+	request->service = service;
+	request->rhost = rhost;
+
+	return request;
+}
 
 int main(int argc, char *argv[])
 {
@@ -1315,11 +1207,11 @@ int main(int argc, char *argv[])
 	char *cli_addr = NULL;
 	char *conf = NULL;
 	int timeout = 30;
-	char *pos;
-	struct extra_radius_attr *p = NULL, *p1;
+	//struct extra_radius_attr *extra_attr = NULL;
 	const char *ifname = "test";
 	const char *ctrl_iface = NULL;
-	struct config *config;
+	struct server_config *server_config;
+	struct auth_request *auth_request;
 
 	if (os_program_init())
 		return -1;
@@ -1335,105 +1227,12 @@ int main(int argc, char *argv[])
 	wpa_debug_show_keys = 1;
 
 	for (;;) {
-		c = getopt(argc, argv, "a:A:c:C:ei:M:nN:o:p:P:r:R:s:St:T:vW");
+		c = getopt(argc, argv, "c:");
 		if (c < 0)
 			break;
 		switch (c) {
-		case 'a':
-			as_addr = optarg;
-			break;
-		case 'A':
-			cli_addr = optarg;
-			break;
 		case 'c':
 			conf = optarg;
-			break;
-		case 'C':
-			eapol_test.connect_info = optarg;
-			break;
-		case 'e':
-			eapol_test.req_eap_key_name = 1;
-			break;
-		case 'i':
-			ifname = optarg;
-			break;
-		case 'M':
-			if (hwaddr_aton(optarg, eapol_test.own_addr)) {
-				usage();
-				return -1;
-			}
-			break;
-		case 'n':
-			eapol_test.no_mppe_keys++;
-			break;
-		case 'o':
-			if (eapol_test.server_cert_file)
-				fclose(eapol_test.server_cert_file);
-			eapol_test.server_cert_file = fopen(optarg, "w");
-			if (eapol_test.server_cert_file == NULL) {
-				printf("Could not open '%s' for writing\n",
-				       optarg);
-				return -1;
-			}
-			break;
-		case 'p':
-			as_port = atoi(optarg);
-			break;
-		case 'P':
-			eapol_test.pcsc_pin = optarg;
-			break;
-		case 'r':
-			eapol_test.eapol_test_num_reauths = atoi(optarg);
-			break;
-		case 'R':
-			eapol_test.pcsc_reader = optarg;
-			break;
-		case 's':
-			as_secret = optarg;
-			break;
-		case 'S':
-			save_config++;
-			break;
-		case 't':
-			timeout = atoi(optarg);
-			break;
-		case 'T':
-			ctrl_iface = optarg;
-			eapol_test.ctrl_iface = 1;
-			break;
-		case 'v':
-			printf("eapol_test v%s\n", VERSION_STR);
-			return 0;
-		case 'W':
-			wait_for_monitor++;
-			break;
-		case 'N':
-			p1 = os_zalloc(sizeof(*p1));
-			if (p1 == NULL)
-				break;
-			if (!p)
-				eapol_test.extra_attrs = p1;
-			else
-				p->next = p1;
-			p = p1;
-
-			p->type = atoi(optarg);
-			pos = os_strchr(optarg, ':');
-			if (pos == NULL) {
-				p->syntax = 'n';
-				p->data = NULL;
-				break;
-			}
-
-			pos++;
-			if (pos[0] == '\0' || pos[1] != ':') {
-				printf("Incorrect format of attribute "
-				       "specification\n");
-				break;
-			}
-
-			p->syntax = pos[0];
-			p->data = pos + 2;
 			break;
 		default:
 			usage();
@@ -1441,20 +1240,33 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (argc > optind && os_strcmp(argv[optind], "scard") == 0) {
-		return scard_test(&eapol_test);
-	}
-
-	if (argc > optind && os_strcmp(argv[optind], "sim") == 0) {
-		return scard_get_triplets(&eapol_test, argc - optind - 1,
-					  &argv[optind + 1]);
-	}
-
 	if (conf == NULL) {
 		usage();
 		printf("Configuration file is required.\n");
 		return -1;
 	}
+
+	server_config = load_config(conf);
+
+	if (server_config == NULL || strcmp(server_config->address, "") == 0 || strcmp(server_config->secret, "") == 0) {
+		printf("Failed to load configuration\n");
+		return -1;
+	}
+
+	printf("Server address: '%s'\n", server_config->address);
+	printf("Shared secret: '%s'\n", server_config->secret);
+
+  auth_request = get_auth_request();
+
+	if (auth_request == NULL || auth_request->username == NULL || auth_request->password == NULL) {
+		printf("Failed to get auth request\n");
+		return -1;
+	}
+
+	printf("Username: '%s'\n", auth_request->username);
+	printf("Password: '%s'\n", auth_request->password);
+
+	os_free(server_config);
 
 	if (eap_register_methods()) {
 		wpa_printf(MSG_ERROR, "Failed to register EAP methods");
@@ -1473,19 +1285,11 @@ int main(int argc, char *argv[])
 	dl_list_init(&wpa_s.bss);
 	dl_list_init(&wpa_s.bss_id);
 
-	config = load_config(conf);
+	wpa_s.conf = wpa_config_alloc_empty(NULL, NULL);
 
-	if (strcmp(config->server_address, "") == 0 || strcmp(config->shared_secret, "") == 0) {
-		printf("Failed to load configuration\n");
-		return -1;
-	}
-
-	printf("Server address: %s\n", config->server_address);
-	printf("Shared secret: %s\n", config->shared_secret);
-
-	os_free(config);
 
 	exit(0);
+
 
 	if (conf)
 		wpa_s.conf = wpa_config_read(conf, NULL);
