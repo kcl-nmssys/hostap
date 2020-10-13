@@ -1255,14 +1255,18 @@ static void usage(void)
 
 static struct config * load_config(char *path)
 {
+	struct config *config;
 	FILE *fp;
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read;
-	struct config *config = NULL;
 	int i;
 	int x = 0;
 	char append[2];
+	char server_address[255];
+	char shared_secret[255];
+
+	config = os_zalloc(sizeof(*config));
 
 	printf("Loading configuration from %s\n", path);
 
@@ -1279,21 +1283,23 @@ static struct config * load_config(char *path)
 		return NULL;
 	}
 
-	config->server_address = "";
-	config->shared_secret = "";
-
-	for (i = 0; i < read; i++) {
+	i = 0;
+	while (line[i] != '\n') {
 		if (line[i] == ' ') {
 			x++;
 		} else {
 			append[0] = line[i];
 			if (x == 0) {
-				strcat(config->server_address, append);
+				strcat(server_address, append);
 			} else {
-				strcat(config->shared_secret, append);
+				strcat(shared_secret, append);
 			}
 		}
+		i++;
 	}
+
+	config->server_address = server_address;
+	config->shared_secret = shared_secret;
 
 	return config;
 }
@@ -1474,6 +1480,11 @@ int main(int argc, char *argv[])
 		printf("Failed to load configuration\n");
 		return -1;
 	}
+
+	printf("Server address: %s\n", config->server_address);
+	printf("Shared secret: %s\n", config->shared_secret);
+
+	os_free(config);
 
 	exit(0);
 
