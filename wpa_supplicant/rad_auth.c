@@ -1237,7 +1237,7 @@ struct wpa_config * wpa_config_build(struct auth_request *auth_request, char *ca
 
 	if (ca_file != NULL) {
 		sprintf(ca_cert, "\"%s\"", ca_file);
-		errors += wpa_config_set(ssid, "ca_cert", ca_file, 0);
+		errors += wpa_config_set(ssid, "ca_cert", ca_cert, 0);
 	}
 
 	if (errors < 0) {
