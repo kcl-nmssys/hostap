@@ -1073,9 +1073,12 @@ static void rad_auth_terminate(int sig, void *signal_ctx)
 static void usage(void)
 {
 	printf("usage:\n"
-	       "rad_auth -c<conf>\n");
+	       "rad_auth -c<conf> [-s<ca_file>]\n");
 	printf("options:\n"
-	       "  -c<conf> = configuration file\n");
+	       "  -c<conf> configuration file\n"
+			   "  -s<ca_file> CA certificate file\n");
+	printf("\nUsername to be authenticated must be provided by PAM_USER environment variable.\n");
+	printf("The associated password should be piped into STDIN.\n");
 }
 
 /*
