@@ -1338,7 +1338,7 @@ int main(int argc, char *argv[])
 	as_secret = server_config->secret;
 
 	openlog(NULL, LOG_PID, LOG_AUTHPRIV);
-	syslog(LOG_AUTHPRIV | LOG_INFO, "Authentication request: Service %s, Client %s, User %s, RADIUS server %s", auth_request->service, auth_request->rhost, auth_request->username, server_config->address);
+	syslog(LOG_AUTHPRIV | LOG_INFO, "Authentication request: Service %s, Client %s, User %s", auth_request->service, auth_request->rhost, auth_request->username);
 
 	wpa_init_conf(&rad_auth, &wpa_s, as_addr, as_port, as_secret,
 		      cli_addr, ifname);
@@ -1407,12 +1407,12 @@ int main(int argc, char *argv[])
 		ret = -4;
 
 	if (ret == 0) {
-		syslog(LOG_AUTHPRIV | LOG_INFO, "Access accept received.");
+		syslog(LOG_AUTHPRIV | LOG_INFO, "Access accept received from %s", server_config->address);
 	} else {
 		if (ret == -3) {
-			syslog(LOG_AUTHPRIV | LOG_INFO, "Access reject received.");
+			syslog(LOG_AUTHPRIV | LOG_INFO, "Access reject received from %s", server_config->address);
 		} else {
-			syslog(LOG_AUTHPRIV | LOG_ERR, "Error authenticating, error code %d.", ret);
+			syslog(LOG_AUTHPRIV | LOG_ERR, "Error authenticating with %s - error code %d", server_config->address, ret);
 		}
 	}
 
