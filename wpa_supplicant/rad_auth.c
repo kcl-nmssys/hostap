@@ -1223,6 +1223,7 @@ struct wpa_config * wpa_config_build(struct auth_request *auth_request, char *ca
 		cred_tail = cred_tail->next;
 
 	ssid = os_zalloc(sizeof(*ssid));
+	wpa_config_set_network_defaults(ssid);
 
 	sprintf(identity, "\"%s\"", auth_request->username);
 	sprintf(password, "\"%s\"", auth_request->password);
