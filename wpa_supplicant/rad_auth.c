@@ -30,6 +30,7 @@
 #include "ctrl_iface.h"
 #include "pcsc_funcs.h"
 #include "wpas_glue.h"
+#include <syslog.h>
 
 const struct wpa_driver_ops *const wpa_drivers[] = { NULL };
 
@@ -726,7 +727,6 @@ static void send_eap_request_identity(void *eloop_ctx, void *timeout_ctx)
 static void rad_auth_timeout(void *eloop_ctx, void *timeout_ctx)
 {
 	struct rad_auth_data *e = eloop_ctx;
-	printf("rad_auth timed out\n");
 	e->auth_timed_out = 1;
 	eloop_terminate();
 }
@@ -1256,11 +1256,11 @@ int main(int argc, char *argv[])
 	char *conf = NULL;
 	char *ca_file = NULL;
 	int timeout = 30;
-	//struct extra_radius_attr *extra_attr = NULL;
 	const char *ifname = "test";
 	const char *ctrl_iface = NULL;
 	struct server_config *server_config;
 	struct auth_request *auth_request;
+	char connect_info[255];
 
 	if (os_program_init())
 		return -1;
@@ -1268,12 +1268,12 @@ int main(int argc, char *argv[])
 	hostapd_logger_register_cb(hostapd_logger_cb);
 
 	os_memset(&rad_auth, 0, sizeof(rad_auth));
-	rad_auth.connect_info = "CONNECT 11Mbps 802.11b";
 	os_memcpy(rad_auth.own_addr, "\x02\x00\x00\x00\x00\x01", ETH_ALEN);
-	rad_auth.pcsc_pin = "1234";
 
 	wpa_debug_level = MSG_ERROR;
-	wpa_debug_show_keys = 1;
+	if (getenv("RAD_AUTH_DEBUG")) {
+		wpa_debug_level = MSG_DEBUG;
+	}
 
 	for (;;) {
 		c = getopt(argc, argv, "c:s:");
@@ -1312,6 +1312,9 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	sprintf(connect_info, "rad_auth for service %s", auth_request->service);
+	rad_auth.connect_info = connect_info;
+
 	if (eap_register_methods()) {
 		wpa_printf(MSG_ERROR, "Failed to register EAP methods");
 		return -1;
@@ -1333,6 +1336,9 @@ int main(int argc, char *argv[])
 
 	as_addr = server_config->address;
 	as_secret = server_config->secret;
+
+	openlog(NULL, LOG_PID, LOG_AUTHPRIV);
+	syslog(LOG_AUTHPRIV | LOG_INFO, "Authentication request: Service %s, Client %s, User %s, RADIUS server %s", auth_request->service, auth_request->rhost, auth_request->username, server_config->address);
 
 	wpa_init_conf(&rad_auth, &wpa_s, as_addr, as_port, as_secret,
 		      cli_addr, ifname);
@@ -1399,10 +1405,16 @@ int main(int argc, char *argv[])
 
 	if (rad_auth.num_mppe_mismatch)
 		ret = -4;
-	if (ret)
-		printf("FAILURE\n");
-	else
-		printf("SUCCESS\n");
+
+	if (ret == 0) {
+		syslog(LOG_AUTHPRIV | LOG_INFO, "Access accept received.");
+	} else {
+		if (ret == -3) {
+			syslog(LOG_AUTHPRIV | LOG_INFO, "Access reject received.");
+		} else {
+			syslog(LOG_AUTHPRIV | LOG_ERR, "Error authenticating, error code %d.", ret);
+		}
+	}
 
 	os_program_deinit();
 
