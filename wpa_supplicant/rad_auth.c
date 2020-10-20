@@ -1260,7 +1260,6 @@ int main(int argc, char *argv[])
 	const char *ctrl_iface = NULL;
 	struct server_config *server_config;
 	struct auth_request *auth_request;
-	char connect_info[255];
 
 	if (os_program_init())
 		return -1;
@@ -1311,9 +1310,6 @@ int main(int argc, char *argv[])
 		printf("Failed to get auth request\n");
 		return -1;
 	}
-
-	sprintf(connect_info, "rad_auth for service %s", auth_request->service);
-	rad_auth.connect_info = connect_info;
 
 	if (eap_register_methods()) {
 		wpa_printf(MSG_ERROR, "Failed to register EAP methods");
